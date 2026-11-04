@@ -164,9 +164,12 @@ def boot_delta(pa, pb, pairs, n=2000, seed=0):
     return d.sum() / m.sum(), np.percentile(s, 2.5), np.percentile(s, 97.5)
 
 
-def taxonomy(preds, pairs):
-    """Where do the failures land? near miss / another annotated part / elsewhere on the object / background."""
-    rows = []
+KINDS = ["correct", "near miss (0.1-0.2)", "another part", "on object, elsewhere", "background / other instance"]
+
+
+def error_kinds(preds, pairs):
+    """Where does each prediction land? near miss / another annotated part / elsewhere on the object / background."""
+    out = {}
     for p in pairs:
         allt = np.concatenate([q.targets for q in p.queries])
         lo, hi = allt.min(0), allt.max(0)
@@ -183,10 +186,16 @@ def taxonomy(preds, pairs):
                 k = "on object, elsewhere"
             else:
                 k = "background / other instance"
-            rows.append((size_bucket(p, q), k))
-    kinds = ["correct", "near miss (0.1-0.2)", "another part", "on object, elsewhere", "background / other instance"]
+            out[q.id] = k
+    return out
+
+
+def taxonomy(preds, pairs):
+    """Share of each error kind, overall and per object size."""
+    kind = error_kinds(preds, pairs)
+    rows = [(size_bucket(p, q), kind[q.id]) for p in pairs for q in p.queries]
     lines = [f"{'':28s}" + "".join(f"{b:>9s}" for b in ("all", "small", "medium", "large"))]
-    for k in kinds:
+    for k in KINDS:
         cells = []
         for b in ("all", "small", "medium", "large"):
             sel = [r for r in rows if b == "all" or r[0] == b]
